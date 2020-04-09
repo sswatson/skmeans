@@ -28,17 +28,22 @@ module.exports = {
   /**
    * K-means++ initial centroid selection
    */
-  kmpp: function kmpp(data, k, fndist) {
-    var distance = fndist || (data[0].length ? eudist : dist);
-    var ks = [],
+  kmpp: function kmpp(data, k, centroids) {
+    var distance = eudist;
+    var ks = centroids.filter(function (v) {
+      return v.length > 0;
+    }),
         len = data.length;
-    var multi = data[0].length > 0;
-    var map = {}; // First random centroid
+    var original_centroid_count = ks.length;
+    var map = {}; // First random centroid, if we don't have any to begin with
 
-    var c = data[Math.floor(Math.random() * len)];
-    var key = multi ? c.join("_") : "".concat(c);
-    ks.push(c);
-    map[key] = true; // Retrieve next centroids
+    if (ks.length == 0) {
+      var c = data[Math.floor(Math.random() * len)];
+      var key = c.join("_");
+      ks.push(c);
+      map[key] = true;
+    } // Retrieve next centroids
+
 
     while (ks.length < k) {
       // Min Distances between current centroids and data points
@@ -95,25 +100,18 @@ module.exports = {
       }
 
       ks.push(prs[idx - 1].v);
-      /*
-      let done = false;
-      while(!done) {
-      	// this is our new centroid
-      	c = prs[idx-1].v
-      	key = multi? c.join("_") : `${c}`;
-      	if(!map[key]) {
-      		map[key] = true;
-      		ks.push(c);
-      		done = true;
-      	}
-      	else {
-      		idx++;
-      	}
-      }
-      */
     }
 
-    return ks;
+    var ctr = 0;
+
+    for (var _j = 0; _j < centroids.length; _j++) {
+      if (centroids[_j].length == 0) {
+        centroids[_j] = ks[original_centroid_count + ctr];
+        ctr++;
+      }
+    }
+
+    return centroids;
   }
 };
 //# sourceMappingURL=kinit.js.map

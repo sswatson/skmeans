@@ -7,9 +7,9 @@ Fork of [this repo](https://github.com/solzimer/skmeans), modified to accommodat
 ```javascript
 var data = [[0, 0], [1, 0], [0, 1], [4, 4], [4, 5]];
 // non-negatives for pre-set clusters; -1 for free points:
-var clusters = [0, -1, -1, 1, 0]; 
+var clusters = [0, 0, -1, 1, -1]; 
 
-var res = skmeans(data,2,null,10,null,clusters);
+var res = skmeans(data,3,10,clusters);
 console.log(res);
 ```
 
@@ -17,12 +17,12 @@ console.log(res);
 ```javascript
 { 
   it: 0,
-  k: 2,
-  idxs: [ 0, 1, 1, 1, 0 ],
-  centroids: [ [ 0, 0 ], [ 1.3333333333333333, 1.6666666666666667 ] ],
-  test: [Function: test] 
+  k: 3,
+  idxs: [ 0, 0, 2, 1, 1 ],
+  centroids: [ [ 0.5, 0 ], [ 4, 4 ], [ 0, 1 ] ],
+  test: [Function: test]
 }
 ```
 
 ## API
-### skmeans(data,k,[centroids],[iterations],[fixedclusters])
+### skmeans(data,k,max_iterations,fixedclusters)

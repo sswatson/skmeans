@@ -133,17 +133,22 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
       /**
        * K-means++ initial centroid selection
        */
-      kmpp: function kmpp(data, k, fndist) {
-        var distance = fndist || (data[0].length ? eudist : dist);
-        var ks = [],
+      kmpp: function kmpp(data, k, centroids) {
+        var distance = eudist;
+        var ks = centroids.filter(function (v) {
+          return v.length > 0;
+        }),
             len = data.length;
-        var multi = data[0].length > 0;
-        var map = {}; // First random centroid
+        var original_centroid_count = ks.length;
+        var map = {}; // First random centroid, if we don't have any to begin with
 
-        var c = data[Math.floor(Math.random() * len)];
-        var key = multi ? c.join("_") : "".concat(c);
-        ks.push(c);
-        map[key] = true; // Retrieve next centroids
+        if (ks.length == 0) {
+          var c = data[Math.floor(Math.random() * len)];
+          var key = c.join("_");
+          ks.push(c);
+          map[key] = true;
+        } // Retrieve next centroids
+
 
         while (ks.length < k) {
           // Min Distances between current centroids and data points
@@ -200,25 +205,18 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
           }
 
           ks.push(prs[idx - 1].v);
-          /*
-          let done = false;
-          while(!done) {
-          	// this is our new centroid
-          	c = prs[idx-1].v
-          	key = multi? c.join("_") : `${c}`;
-          	if(!map[key]) {
-          		map[key] = true;
-          		ks.push(c);
-          		done = true;
-          	}
-          	else {
-          		idx++;
-          	}
-          }
-          */
         }
 
-        return ks;
+        var ctr = 0;
+
+        for (var _j = 0; _j < centroids.length; _j++) {
+          if (centroids[_j].length == 0) {
+            centroids[_j] = ks[original_centroid_count + ctr];
+            ctr++;
+          }
+        }
+
+        return centroids;
       }
     };
   }, {
@@ -239,7 +237,7 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
      * Inits an array with values
      */
 
-    function init(len, val, v) {
+    function fill(len, val, v) {
       v = v || [];
 
       for (var i = 0; i < len; i++) {
@@ -250,8 +248,7 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
     }
 
     function test(point, fndist) {
-      var multi = Array.isArray(point),
-          ks = this.centroids,
+      var ks = this.centroids,
           k = ks.length; // For each value in data, find the nearest centroid
 
       var min = Infinity,
@@ -259,7 +256,7 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
 
       for (var j = 0; j < k; j++) {
         // Custom, Multidimensional or unidimensional
-        var dist = fndist ? fndist(point, ks[j]) : multi ? eudist(point, ks[j]) : Math.abs(point - ks[j]);
+        var dist = fndist ? fndist(point, ks[j]) : eudist(point, ks[j]);
 
         if (dist <= min) {
           min = dist;
@@ -273,7 +270,7 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
       };
     }
 
-    function skmeans(data, k, initial, maxit, fndist, fixedclusters) {
+    function skmeans(data, k, maxit, fixedclusters) {
       // fixedclusters looks like [0, 1, 0, 0, -1, -1, -1], e.g.,
       // to indicate that 0, 2, 3 should stay clustered and 
       // 1 should stay clustered and the last three data points
@@ -289,74 +286,50 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
           vlen = data[0].length;
       var count = [];
 
-      if (!initial) {
-        var _idxs = {},
-            z = 0;
-
-        while (ks.length < k) {
-          var idx = Math.floor(Math.random() * len);
-
-          if (!_idxs[idx]) {
-            _idxs[idx] = true;
-            ks[z++] = data[idx];
-          }
-        }
-      } else if (initial == "kmrand") {
-        ks = kmrand(data, k);
-      } else if (initial == "kmpp") {
-        ks = kmpp(data, k, fndist);
-      } else {
-        ks = initial;
+      for (var j = 0; j < k; j++) {
+        ks[j] = [];
+        count[j] = 0;
       } // fix centers based on pre-specified clusters
 
 
       if (fixedclusters) {
-        // assign the fixed points to their clusters, permanently
-        for (var i = 0; i < len; i++) {
-          if (fixedclusters[i] != -1) {
-            idxs[i] = fixedclusters[i];
-          }
-        } // which clusters are fixed:
-
-
+        // determine which clusters are fixed:
         var fixedcluster_inds = _toConsumableArray(new Set(fixedclusters)).sort().slice(1);
 
         var fixedclusters_set = new Set(fixedcluster_inds); // set up zero vectors to store means
 
         var sum = [];
 
-        for (var j = 0; j < k; j++) {
-          sum[j] = init(vlen, 0, sum[j]);
-        } // Sum values and count for each centroid
+        for (var _j2 = 0; _j2 < k; _j2++) {
+          sum[_j2] = fill(vlen, 0, sum[_j2]);
+        } // Sum, values, and count for each centroid
 
 
-        for (var _i4 = 0; _i4 < len; _i4++) {
-          if (fixedclusters[_i4] != -1) {
-            var _idx = fixedclusters[_i4],
+        for (var i = 0; i < len; i++) {
+          if (fixedclusters[i] != -1) {
+            var idx = fixedclusters[i],
                 // Centroid for that item
-            vsum = sum[_idx],
+            vsum = sum[idx],
                 // Sum values for this centroid
-            vect = data[_i4]; // Current vector
+            vect = data[i]; // Current vector
             // Accumulate value on the centroid for current vector
 
             for (var h = 0; h < vlen; h++) {
               vsum[h] += vect[h];
             }
+
+            count[idx]++;
           }
         } // Calculate the average for each centroid
 
 
-        conv = true;
-
-        for (var _j = 0; _j < k; _j++) {
-          if (fixedclusters_set.has(_j)) {
-            var ksj = ks[_j],
+        for (var _j3 = 0; _j3 < k; _j3++) {
+          if (fixedclusters_set.has(_j3)) {
+            var ksj = ks[_j3],
                 // Current centroid
-            sumj = sum[_j],
+            sumj = sum[_j3],
                 // Accumulated centroid values
-            oldj = old[_j],
-                // Old centroid value
-            cj = count[_j]; // Number of elements for this centroid
+            cj = count[_j3]; // Number of elements for this centroid
 
             for (var _h = 0; _h < vlen; _h++) {
               ksj[_h] = sumj[_h] / cj || 0; // centroid
@@ -364,61 +337,78 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
           }
         }
       } else {
-        var fixedclusters = init(len, -1);
+        var fixedclusters = fill(len, -1);
         var fixedcluster_inds = [];
         var fixedclusters_set = new Set();
-      }
+      } // pick random points from the dataset as starting points 
+      // for the free cluster centroids
+      // let alreadypicked = {}, z = 0; 
+      // let freeclusters = [...Array(k).keys()].filter(j=>!fixedclusters_set.has(j))
+      // while(freeclusters.length > 0) {
+      // 	let idx = Math.floor(Math.random()*len);
+      // 	if (fixedclusters[idx] != -1) {
+      // 		alreadypicked[idx] = true;
+      // 	}
+      // 	if(!alreadypicked[idx]) {
+      // 		alreadypicked[idx] = true;
+      // 		ks[freeclusters.shift()] = [...data[idx]];
+      // 	}
+      // }
+
+
+      console.log(ks);
+      kmpp(data, k, ks);
+      console.log(ks);
 
       do {
-        // Reset k count
-        init(k, 0, count); // For each non-fixed value in data, find the nearest centroid
+        // Reset count
+        fill(k, 0, count); // For each non-fixed value in data, find the nearest centroid
 
-        for (var _i5 = 0; _i5 < len; _i5++) {
+        for (var _i4 = 0; _i4 < len; _i4++) {
           var min = Infinity,
-              _idx2 = 0;
+              _idx = 0;
 
-          if (fixedclusters[_i5] == -1) {
+          if (fixedclusters[_i4] == -1) {
             // -1 indicates a non-fixed point
-            for (var _j2 = 0; _j2 < k; _j2++) {
-              var dist = fndist ? fndist(data[_i5], ks[_j2]) : eudist(data[_i5], ks[_j2]);
+            for (var _j4 = 0; _j4 < k; _j4++) {
+              var dist = eudist(data[_i4], ks[_j4]);
 
               if (dist <= min) {
                 min = dist;
-                _idx2 = _j2;
+                _idx = _j4;
               }
             }
           } else {
-            _idx2 = fixedclusters[_i5];
+            _idx = fixedclusters[_i4];
           }
 
-          idxs[_i5] = _idx2; // Index of the selected centroid for that value
+          idxs[_i4] = _idx; // Index of the selected centroid for that value
 
-          count[_idx2]++; // Number of values for this centroid
+          count[_idx]++; // Number of values for this centroid
         } // Recalculate centroids
 
 
         var sum = [],
-            old = [],
-            dif = 0;
+            old = [];
 
-        for (var _j3 = 0; _j3 < k; _j3++) {
-          sum[_j3] = init(vlen, 0, sum[_j3]);
-          old[_j3] = ks[_j3];
+        for (var _j5 = 0; _j5 < k; _j5++) {
+          sum[_j5] = fill(vlen, 0, sum[_j5]);
+          old[_j5] = ks[_j5];
         }
 
-        for (var _j4 = 0; _j4 < k; _j4++) {
-          if (!fixedclusters_set.has(_j4)) {
-            ks[_j4] = [];
+        for (var _j6 = 0; _j6 < k; _j6++) {
+          if (!fixedclusters_set.has(_j6)) {
+            ks[_j6] = [];
           }
         } // Sum values and count for each centroid
 
 
-        for (var _i6 = 0; _i6 < len; _i6++) {
-          var _idx3 = idxs[_i6],
+        for (var _i5 = 0; _i5 < len; _i5++) {
+          var _idx2 = idxs[_i5],
               // Centroid for that item
-          _vsum = sum[_idx3],
+          _vsum = sum[_idx2],
               // Sum values for this centroid
-          _vect = data[_i6]; // Current vector
+          _vect = data[_i5]; // Current vector
           // Accumulate value on the centroid for current vector
 
           for (var _h2 = 0; _h2 < vlen; _h2++) {
@@ -429,26 +419,28 @@ function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
 
         conv = true;
 
-        for (var _j5 = 0; _j5 < k; _j5++) {
-          var _ksj = ks[_j5],
-              // Current centroid
-          _sumj = sum[_j5],
-              // Accumulated centroid values
-          _oldj = old[_j5],
-              // Old centroid value
-          _cj = count[_j5]; // Number of elements for this centroid
-          // New average
+        for (var _j7 = 0; _j7 < k; _j7++) {
+          if (!fixedclusters_set.has(_j7)) {
+            var _ksj = ks[_j7],
+                // Current centroid
+            _sumj = sum[_j7],
+                // Accumulated centroid values
+            oldj = old[_j7],
+                // Old centroid value
+            _cj = count[_j7]; // Number of elements for this centroid
+            // New average
 
-          for (var _h3 = 0; _h3 < vlen; _h3++) {
-            _ksj[_h3] = _sumj[_h3] / _cj || 0; // New centroid
-          } // Find if centroids have moved
+            for (var _h3 = 0; _h3 < vlen; _h3++) {
+              _ksj[_h3] = _sumj[_h3] / _cj || 0; // New centroid
+            } // Determine whether centroids have moved
 
 
-          if (conv) {
-            for (var _h4 = 0; _h4 < vlen; _h4++) {
-              if (_oldj[_h4] != _ksj[_h4]) {
-                conv = false;
-                break;
+            if (conv) {
+              for (var _h4 = 0; _h4 < vlen; _h4++) {
+                if (oldj[_h4] != _ksj[_h4]) {
+                  conv = false;
+                  break;
+                }
               }
             }
           }
