@@ -16,7 +16,7 @@ console.log(res);
 ## Results
 ```javascript
 { 
-	it: 0,
+  it: 0,
   k: 2,
   idxs: [ 0, 1, 1, 1, 0 ],
   centroids: [ [ 0, 0 ], [ 1.3333333333333333, 1.6666666666666667 ] ],
