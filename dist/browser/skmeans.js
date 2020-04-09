@@ -1,5 +1,13 @@
 "use strict";
 
+function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread(); }
+
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance"); }
+
+function _iterableToArray(iter) { if (Symbol.iterator in Object(iter) || Object.prototype.toString.call(iter) === "[object Arguments]") return Array.from(iter); }
+
+function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } }
+
 (function () {
   function r(e, n, t) {
     function o(i, f) {
@@ -265,7 +273,12 @@
       };
     }
 
-    function skmeans(data, k, initial, maxit, fndist) {
+    function skmeans(data, k, initial, maxit, fndist, fixedclusters) {
+      // fixedclusters looks like [0, 1, 0, 0, -1, -1, -1], e.g.,
+      // to indicate that 0, 2, 3 should stay clustered and 
+      // 1 should stay clustered and the last three data points
+      // should go in some cluster, either one of the first two
+      // or a new one
       var ks = [],
           old = [],
           idxs = [],
@@ -273,8 +286,7 @@
       var conv = false,
           it = maxit || MAX;
       var len = data.length,
-          vlen = data[0].length,
-          multi = vlen > 0;
+          vlen = data[0].length;
       var count = [];
 
       if (!initial) {
@@ -295,59 +307,34 @@
         ks = kmpp(data, k, fndist);
       } else {
         ks = initial;
-      }
+      } // fix centers based on pre-specified clusters
 
-      do {
-        // Reset k count
-        init(k, 0, count); // For each value in data, find the nearest centroid
 
+      if (fixedclusters) {
+        // assign the fixed points to their clusters, permanently
         for (var i = 0; i < len; i++) {
-          var min = Infinity,
-              _idx = 0;
-
-          for (var j = 0; j < k; j++) {
-            // Custom, Multidimensional or unidimensional
-            var dist = fndist ? fndist(data[i], ks[j]) : multi ? eudist(data[i], ks[j]) : Math.abs(data[i] - ks[j]);
-
-            if (dist <= min) {
-              min = dist;
-              _idx = j;
-            }
+          if (fixedclusters[i] != -1) {
+            idxs[i] = fixedclusters[i];
           }
-
-          idxs[i] = _idx; // Index of the selected centroid for that value
-
-          count[_idx]++; // Number of values for this centroid
-        } // Recalculate centroids
+        } // which clusters are fixed:
 
 
-        var sum = [],
-            old = [],
-            dif = 0;
+        var fixedcluster_inds = _toConsumableArray(new Set(fixedclusters)).sort().slice(1);
 
-        if (multi) {
-          for (var _j = 0; _j < k; _j++) {
-            sum[_j] = init(vlen, 0, sum[_j]);
-            old[_j] = ks[_j];
-          }
-        } else {
-          for (var _j2 = 0; _j2 < k; _j2++) {
-            sum[_j2] = 0;
-            old[_j2] = ks[_j2];
-          }
-        } // If multidimensional
+        var fixedclusters_set = new Set(fixedcluster_inds); // set up zero vectors to store means
+
+        var sum = [];
+
+        for (var j = 0; j < k; j++) {
+          sum[j] = init(vlen, 0, sum[j]);
+        } // Sum values and count for each centroid
 
 
-        if (multi) {
-          for (var _j3 = 0; _j3 < k; _j3++) {
-            ks[_j3] = [];
-          } // Sum values and count for each centroid
-
-
-          for (var _i4 = 0; _i4 < len; _i4++) {
-            var _idx2 = idxs[_i4],
+        for (var _i4 = 0; _i4 < len; _i4++) {
+          if (fixedclusters[_i4] != -1) {
+            var _idx = fixedclusters[_i4],
                 // Centroid for that item
-            vsum = sum[_idx2],
+            vsum = sum[_idx],
                 // Sum values for this centroid
             vect = data[_i4]; // Current vector
             // Accumulate value on the centroid for current vector
@@ -355,58 +342,117 @@
             for (var h = 0; h < vlen; h++) {
               vsum[h] += vect[h];
             }
-          } // Calculate the average for each centroid
+          }
+        } // Calculate the average for each centroid
 
 
-          conv = true;
+        conv = true;
 
-          for (var _j4 = 0; _j4 < k; _j4++) {
-            var ksj = ks[_j4],
+        for (var _j = 0; _j < k; _j++) {
+          if (fixedclusters_set.has(_j)) {
+            var ksj = ks[_j],
                 // Current centroid
-            sumj = sum[_j4],
+            sumj = sum[_j],
                 // Accumulated centroid values
-            oldj = old[_j4],
+            oldj = old[_j],
                 // Old centroid value
-            cj = count[_j4]; // Number of elements for this centroid
-            // New average
+            cj = count[_j]; // Number of elements for this centroid
 
             for (var _h = 0; _h < vlen; _h++) {
-              ksj[_h] = sumj[_h] / cj || 0; // New centroid
-            } // Find if centroids have moved
-
-
-            if (conv) {
-              for (var _h2 = 0; _h2 < vlen; _h2++) {
-                if (oldj[_h2] != ksj[_h2]) {
-                  conv = false;
-                  break;
-                }
-              }
+              ksj[_h] = sumj[_h] / cj || 0; // centroid
             }
           }
-        } // If unidimensional
-        else {
-            // Sum values and count for each centroid
-            for (var _i5 = 0; _i5 < len; _i5++) {
-              var _idx3 = idxs[_i5];
-              sum[_idx3] += data[_i5];
-            } // Calculate the average for each centroid
+        }
+      } else {
+        var fixedclusters = init(len, -1);
+        var fixedcluster_inds = [];
+        var fixedclusters_set = new Set();
+      }
+
+      do {
+        // Reset k count
+        init(k, 0, count); // For each non-fixed value in data, find the nearest centroid
+
+        for (var _i5 = 0; _i5 < len; _i5++) {
+          var min = Infinity,
+              _idx2 = 0;
+
+          if (fixedclusters[_i5] == -1) {
+            // -1 indicates a non-fixed point
+            for (var _j2 = 0; _j2 < k; _j2++) {
+              var dist = fndist ? fndist(data[_i5], ks[_j2]) : eudist(data[_i5], ks[_j2]);
+
+              if (dist <= min) {
+                min = dist;
+                _idx2 = _j2;
+              }
+            }
+          } else {
+            _idx2 = fixedclusters[_i5];
+          }
+
+          idxs[_i5] = _idx2; // Index of the selected centroid for that value
+
+          count[_idx2]++; // Number of values for this centroid
+        } // Recalculate centroids
 
 
-            for (var _j5 = 0; _j5 < k; _j5++) {
-              ks[_j5] = sum[_j5] / count[_j5] || 0; // New centroid
-            } // Find if centroids have moved
+        var sum = [],
+            old = [],
+            dif = 0;
+
+        for (var _j3 = 0; _j3 < k; _j3++) {
+          sum[_j3] = init(vlen, 0, sum[_j3]);
+          old[_j3] = ks[_j3];
+        }
+
+        for (var _j4 = 0; _j4 < k; _j4++) {
+          if (!fixedclusters_set.has(_j4)) {
+            ks[_j4] = [];
+          }
+        } // Sum values and count for each centroid
 
 
-            conv = true;
+        for (var _i6 = 0; _i6 < len; _i6++) {
+          var _idx3 = idxs[_i6],
+              // Centroid for that item
+          _vsum = sum[_idx3],
+              // Sum values for this centroid
+          _vect = data[_i6]; // Current vector
+          // Accumulate value on the centroid for current vector
 
-            for (var _j6 = 0; _j6 < k; _j6++) {
-              if (old[_j6] != ks[_j6]) {
+          for (var _h2 = 0; _h2 < vlen; _h2++) {
+            _vsum[_h2] += _vect[_h2];
+          }
+        } // Calculate the average for each centroid
+
+
+        conv = true;
+
+        for (var _j5 = 0; _j5 < k; _j5++) {
+          var _ksj = ks[_j5],
+              // Current centroid
+          _sumj = sum[_j5],
+              // Accumulated centroid values
+          _oldj = old[_j5],
+              // Old centroid value
+          _cj = count[_j5]; // Number of elements for this centroid
+          // New average
+
+          for (var _h3 = 0; _h3 < vlen; _h3++) {
+            _ksj[_h3] = _sumj[_h3] / _cj || 0; // New centroid
+          } // Find if centroids have moved
+
+
+          if (conv) {
+            for (var _h4 = 0; _h4 < vlen; _h4++) {
+              if (_oldj[_h4] != _ksj[_h4]) {
                 conv = false;
                 break;
               }
             }
           }
+        }
 
         conv = conv || --it <= 0;
       } while (!conv);

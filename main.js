@@ -45,10 +45,15 @@ function test(point, fndist) {
 	}
 }
 
-function skmeans(data,k,initial,maxit,fndist) {
+function skmeans(data,k,initial,maxit,fndist,fixedclusters) {
+	// fixedclusters looks like [0, 1, 0, 0, -1, -1, -1], e.g.,
+	// to indicate that 0, 2, 3 should stay clustered and 
+	// 1 should stay clustered and the last three data points
+	// should go in some cluster, either one of the first two
+	// or a new one
 	var ks = [], old = [], idxs = [], dist = [];
 	var conv = false, it = maxit || MAX;
-	var len = data.length, vlen = data[0].length, multi = vlen>0;
+	var len = data.length, vlen = data[0].length; 
 	var count = [];
 
 	if(!initial) {
@@ -70,51 +75,30 @@ function skmeans(data,k,initial,maxit,fndist) {
 	else {
 		ks = initial;
 	}
-
-	do {
-		// Reset k count
-		init(k,0,count);
-
-		// For each value in data, find the nearest centroid
+	
+	// fix centers based on pre-specified clusters
+	if(fixedclusters) {
+		// assign the fixed points to their clusters, permanently
 		for(let i=0;i<len;i++) {
-			let min = Infinity, idx = 0;
-			for(let j=0;j<k;j++) {
-				// Custom, Multidimensional or unidimensional
-				var dist =	fndist ? fndist(data[i],ks[j]) :
-										multi? eudist(data[i],ks[j]) :
-										Math.abs(data[i]-ks[j]);
-
-				if(dist<=min) {
-					min = dist;
-					idx = j;
-				}
+			if (fixedclusters[i] != -1) {
+				idxs[i] = fixedclusters[i]; 
 			}
-			idxs[i] = idx;	// Index of the selected centroid for that value
-			count[idx]++;		// Number of values for this centroid
 		}
-
-		// Recalculate centroids
-		var sum = [], old = [], dif = 0;
-		if(multi) {
-			for(let j=0;j<k;j++) {
+		
+		// which clusters are fixed:
+		var fixedcluster_inds = [...new Set(fixedclusters)].sort().slice(1);
+		var fixedclusters_set = new Set(fixedcluster_inds);
+		
+		// set up zero vectors to store means
+		var sum = []; 
+		for(let j=0;j<k;j++) {
 				sum[j] = init(vlen,0,sum[j]);
-				old[j] = ks[j];
-			}
-		}
-		else {
-			for(let j=0;j<k;j++) {
-				sum[j] = 0;
-				old[j] = ks[j];
-			}
 		}
 
-		// If multidimensional
-		if(multi) {
-			for(let j=0;j<k;j++) ks[j] = [];
-
-			// Sum values and count for each centroid
-			for(let i=0;i<len;i++) {
-				let	idx = idxs[i],		// Centroid for that item
+		// Sum values and count for each centroid
+		for(let i=0;i<len;i++) {
+			if (fixedclusters[i] != -1) {
+				let	idx = fixedclusters[i],		// Centroid for that item
 						vsum = sum[idx],	// Sum values for this centroid
 						vect = data[i];		// Current vector
 
@@ -123,53 +107,101 @@ function skmeans(data,k,initial,maxit,fndist) {
 					vsum[h] += vect[h];
 				}
 			}
-			// Calculate the average for each centroid
-			conv = true;
-			for(let j=0;j<k;j++) {
+		}
+		// Calculate the average for each centroid
+		conv = true;
+		for(let j=0;j<k;j++) {
+			if (fixedclusters_set.has(j)) {
 				let ksj = ks[j],		// Current centroid
 						sumj = sum[j],	// Accumulated centroid values
 						oldj = old[j], 	// Old centroid value
 						cj = count[j];	// Number of elements for this centroid
-
-				// New average
 				for(let h=0;h<vlen;h++) {
-					ksj[h] = (sumj[h])/(cj) || 0;	// New centroid
-				}
-
-				// Find if centroids have moved
-				if(conv) {
-					for(let h=0;h<vlen;h++) {
-						if(oldj[h]!=ksj[h]) {
-							conv = false;
-							break;
-						}
-					}
+					ksj[h] = (sumj[h])/(cj) || 0;	// centroid
 				}
 			}
 		}
-		// If unidimensional
-		else {
-			// Sum values and count for each centroid
-			for(let i=0;i<len;i++) {
-				let idx = idxs[i];
-				sum[idx] += data[i];
+	}
+	else {
+		var fixedclusters = init(len, -1);
+		var fixedcluster_inds = [];
+		var fixedclusters_set = new Set();
+	}
+
+	do {
+		// Reset k count
+		init(k,0,count);
+
+		// For each non-fixed value in data, find the nearest centroid
+		for(let i=0;i<len;i++) {
+			let min = Infinity, idx = 0;
+			if (fixedclusters[i] == -1) { // -1 indicates a non-fixed point
+				for(let j=0;j<k;j++) {
+					var dist =	fndist ? fndist(data[i],ks[j]) : eudist(data[i],ks[j]);
+					
+					if(dist<=min) {
+						min = dist;
+						idx = j;
+					}
+				}
 			}
-			// Calculate the average for each centroid
-			for(let j=0;j<k;j++) {
-				ks[j] = sum[j]/count[j] || 0;	// New centroid
+			else {
+				idx = fixedclusters[i]; 
 			}
+			idxs[i] = idx;	// Index of the selected centroid for that value
+			count[idx]++;		// Number of values for this centroid
+		}
+
+		// Recalculate centroids
+		var sum = [], old = [], dif = 0;
+		for(let j=0;j<k;j++) {
+				sum[j] = init(vlen,0,sum[j]);
+				old[j] = ks[j];
+		}
+		
+		for(let j=0;j<k;j++) {
+			if (!fixedclusters_set.has(j)) {
+				ks[j] = [];
+			}
+		}
+
+		// Sum values and count for each centroid
+		for(let i=0;i<len;i++) {
+			let	idx = idxs[i],		// Centroid for that item
+					vsum = sum[idx],	// Sum values for this centroid
+					vect = data[i];		// Current vector
+
+			// Accumulate value on the centroid for current vector
+			for(let h=0;h<vlen;h++) {
+				vsum[h] += vect[h];
+			}
+		}
+		// Calculate the average for each centroid
+		conv = true;
+		for(let j=0;j<k;j++) {
+			let ksj = ks[j],		// Current centroid
+					sumj = sum[j],	// Accumulated centroid values
+					oldj = old[j], 	// Old centroid value
+					cj = count[j];	// Number of elements for this centroid
+
+			// New average
+			for(let h=0;h<vlen;h++) {
+				ksj[h] = (sumj[h])/(cj) || 0;	// New centroid
+			}
+
 			// Find if centroids have moved
-			conv = true;
-			for(let j=0;j<k;j++) {
-				if(old[j]!=ks[j]) {
-					conv = false;
-					break;
+			if(conv) {
+				for(let h=0;h<vlen;h++) {
+					if(oldj[h]!=ksj[h]) {
+						conv = false;
+						break;
+					}
 				}
 			}
 		}
 
 		conv = conv || (--it<=0);
-	}while(!conv);
+	} while(!conv);
 
 	return {
 		it : (maxit || MAX) - it,
