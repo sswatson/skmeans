@@ -39,9 +39,7 @@ module.exports = {
 
     if (ks.length == 0) {
       var c = data[Math.floor(Math.random() * len)];
-      var key = c.join("_");
       ks.push(c);
-      map[key] = true;
     } // Retrieve next centroids
 
 

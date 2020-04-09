@@ -25,17 +25,17 @@ module.exports = {
 	/**
 	 * K-means++ initial centroid selection
 	 */
-	kmpp(data,k,fndist) {
-		var distance = fndist || (data[0].length? eudist : dist);
-		var ks = [], len = data.length;
-		var multi = data[0].length>0;
+	kmpp(data,k,centroids) {
+		var distance = eudist;
+		var ks = centroids.filter(v=>v.length > 0), len = data.length;
+		var original_centroid_count = ks.length;
 		var map = {};
 
-		// First random centroid
-		var c = data[Math.floor(Math.random()*len)];
-		var key = multi? c.join("_") : `${c}`;
-		ks.push(c);
-		map[key] = true;
+		// First random centroid, if we don't have any to begin with
+		if (ks.length == 0) {
+			var c = data[Math.floor(Math.random()*len)];
+			ks.push(c);
+		}
 
 		// Retrieve next centroids
 		while(ks.length<k) {
@@ -78,25 +78,16 @@ module.exports = {
 			let idx = 0;
 			while(idx<len-1 && prs[idx++].cs<rnd);
 			ks.push(prs[idx-1].v);
-			/*
-			let done = false;
-			while(!done) {
-				// this is our new centroid
-				c = prs[idx-1].v
-				key = multi? c.join("_") : `${c}`;
-				if(!map[key]) {
-					map[key] = true;
-					ks.push(c);
-					done = true;
-				}
-				else {
-					idx++;
-				}
-			}
-			*/
 		}
 
-		return ks;
+		let ctr = 0;
+		for (let j=0;j<centroids.length;j++) {
+			if (centroids[j].length == 0) {
+				centroids[j] = ks[original_centroid_count + ctr]; 
+				ctr++;
+			}
+		}
+		return centroids;
 	}
 
 }

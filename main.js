@@ -103,23 +103,8 @@ function skmeans(data,k,maxit,fixedclusters) {
 		var fixedclusters_set = new Set();
 	}
 	
-	// pick random points from the dataset as starting points 
-	// for the free cluster centroids
-	// let alreadypicked = {}, z = 0; 
-	// let freeclusters = [...Array(k).keys()].filter(j=>!fixedclusters_set.has(j))
-	// while(freeclusters.length > 0) {
-	// 	let idx = Math.floor(Math.random()*len);
-	// 	if (fixedclusters[idx] != -1) {
-	// 		alreadypicked[idx] = true;
-	// 	}
-	// 	if(!alreadypicked[idx]) {
-	// 		alreadypicked[idx] = true;
-	// 		ks[freeclusters.shift()] = [...data[idx]];
-	// 	}
-	// }
-	console.log(ks); 
+	// Choose initial points for the free clusters in a smart way
 	kmpp(data, k, ks);
-	console.log(ks);
 
 	do {
 		// Reset count
