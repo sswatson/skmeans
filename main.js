@@ -44,29 +44,41 @@ function test(point, fndist) {
 
 function skmeans(data,k,maxit,fixedclusters) {
 	// fixedclusters looks like [0, 1, 0, 0, -1, -1, -1], e.g.,
-	// to indicate that 0, 2, 3 should stay clustered and 
+	// to indicate that 0, 2, 3 should stay clustered and
 	// 1 should stay clustered and the last three data points
 	// should go in some cluster, either one of the first two
 	// or a new one
+	if (!fixedclusters) {
+		fixedclusters = data.map(x => -1);
+	}
+	if (!fixedclusters.some(x => x === -1)) {
+		return {
+			it : 0,
+			k : k,
+			idxs : fixedclusters,
+			centroids : [], // skip the computation of centroids
+			test : test
+		};
+	}
 	var ks = [], old = [], idxs = [], dist = [];
 	var conv = false, it = maxit || MAX;
-	var len = data.length, vlen = data[0].length; 
+	var len = data.length, vlen = data[0].length;
 	var count = [];
-	
+
 	for (let j=0;j<k;j++){
 		ks[j] = [];
 		count[j] = 0;
 	}
-	
+
 	// fix centers based on pre-specified clusters
 	if(fixedclusters) {
-		
+
 		// determine which clusters are fixed:
 		var fixedcluster_inds = [...new Set(fixedclusters)].sort().slice(1);
 		var fixedclusters_set = new Set(fixedcluster_inds);
-		
+
 		// set up zero vectors to store means
-		var sum = []; 
+		var sum = [];
 		for(let j=0;j<k;j++) {
 				sum[j] = fill(vlen,0,sum[j]);
 		}
@@ -102,7 +114,7 @@ function skmeans(data,k,maxit,fixedclusters) {
 		var fixedcluster_inds = [];
 		var fixedclusters_set = new Set();
 	}
-	
+
 	// Choose initial points for the free clusters in a smart way
 	kmpp(data, k, ks);
 
@@ -116,7 +128,7 @@ function skmeans(data,k,maxit,fixedclusters) {
 			if (fixedclusters[i] == -1) { // -1 indicates a non-fixed point
 				for(let j=0;j<k;j++) {
 					var dist = eudist(data[i],ks[j]);
-					
+
 					if(dist<=min) {
 						min = dist;
 						idx = j;
@@ -124,11 +136,11 @@ function skmeans(data,k,maxit,fixedclusters) {
 				}
 			}
 			else {
-				idx = fixedclusters[i]; 
+				idx = fixedclusters[i];
 			}
 			idxs[i] = idx;	// Index of the selected centroid for that value
 			count[idx]++;		// Number of values for this centroid
-		}		
+		}
 
 		// Recalculate centroids
 		var sum = [], old = [];
@@ -136,7 +148,7 @@ function skmeans(data,k,maxit,fixedclusters) {
 				sum[j] = fill(vlen,0,sum[j]);
 				old[j] = ks[j];
 		}
-		
+
 		for(let j=0;j<k;j++) {
 			if (!fixedclusters_set.has(j)) {
 				ks[j] = [];
@@ -154,7 +166,7 @@ function skmeans(data,k,maxit,fixedclusters) {
 				vsum[h] += vect[h];
 			}
 		}
-		
+
 		// Calculate the average for each centroid
 		conv = true;
 		for(let j=0;j<k;j++) {
