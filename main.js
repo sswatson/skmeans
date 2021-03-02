@@ -60,6 +60,15 @@ function skmeans(data,k,maxit,fixedclusters) {
 			test : test
 		};
 	}
+	if (data.length === 1) {
+		return {
+			it: 0,
+			k: k,
+			idxs: [0],
+			centroids: [],
+			test: test,
+		}
+	}
 	var ks = [], old = [], idxs = [], dist = [];
 	var conv = false, it = maxit || MAX;
 	var len = data.length, vlen = data[0].length;
