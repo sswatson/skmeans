@@ -57,10 +57,39 @@ function test(point, fndist) {
 
 function skmeans(data, k, maxit, fixedclusters) {
   // fixedclusters looks like [0, 1, 0, 0, -1, -1, -1], e.g.,
-  // to indicate that 0, 2, 3 should stay clustered and 
+  // to indicate that 0, 2, 3 should stay clustered and
   // 1 should stay clustered and the last three data points
   // should go in some cluster, either one of the first two
   // or a new one
+  if (!fixedclusters) {
+    fixedclusters = data.map(function (x) {
+      return -1;
+    });
+  }
+
+  if (!fixedclusters.some(function (x) {
+    return x === -1;
+  })) {
+    return {
+      it: 0,
+      k: k,
+      idxs: fixedclusters,
+      centroids: [],
+      // skip the computation of centroids
+      test: test
+    };
+  }
+
+  if (data.length === 1) {
+    return {
+      it: 0,
+      k: k,
+      idxs: [0],
+      centroids: [],
+      test: test
+    };
+  }
+
   var ks = [],
       old = [],
       idxs = [],
